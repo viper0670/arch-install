@@ -1,4 +1,17 @@
-cfdisk /dev/sda
+$check network
+if ping -q -c 1 -W 1 8.8.8.8 > /dev/null; then
+	echo 
+else
+	echo "ERROR: Bad internet connection"
+	exit
+  
+$partitioning (working on auto partition)
+sgdisk --new=1:0:+768M $DEV
+sgdisk --new=2:0:+2M $DEV
+sgdisk --new=3:0:+128M $DEV
+sgdisk --new=5:0:0 $DEV
+
+$cfdisk /dev/sda
 
 $prepare swap partition
 mkfs.fat -F32 /dev/sda1
@@ -20,7 +33,6 @@ nano /etc/locale.gen
 locale-gen
 echo LANG=en_US.UTF-8 > /etc/locale.conf
 export LANG=en_US.UTF-8
-
 nano /etc/hosts
 passwd
 
