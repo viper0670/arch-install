@@ -1,3 +1,5 @@
+run this cmd through arch test system vm (cryptsetup benchmark)
+
 $check network
 if ping -q -c 1 -W 1 8.8.8.8 > /dev/null; then
 	echo 
@@ -5,7 +7,7 @@ else
 	echo "ERROR: Bad internet connection"
 	exit
   
-$partitioning (working on auto partition)
+$partitioning (working on auto partition )
 sgdisk --new=1:0:+768M $DEV
 sgdisk --new=2:0:+2M $DEV
 sgdisk --new=3:0:+128M $DEV
