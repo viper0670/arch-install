@@ -194,3 +194,263 @@ diskpartcgdisk(){
 		cgdisk ${device}
 	fi
 }
+
+mountmenu(){
+	if [ "${1}" = "" ]; then
+		nextitem="."
+	else
+		nextitem=${1}
+	fi
+	options=()
+	options+=("${txtformatdevices}" "")
+	options+=("${txtmount}" "${txtmountdesc}")
+	sel=$(whiptail --backtitle "${apptitle}" --title "${txtformatmountmenu}" --menu "" --cancel-button "${txtback}" --default-item "${nextitem}" 0 0 0 \
+		"${options[@]}" \
+		3>&1 1>&2 2>&3)
+	if [ "$?" = "0" ]; then
+		case ${sel} in
+			"${txtformatdevices}")
+				formatdevices
+				nextitem="${txtmount}"
+			;;
+			"${txtmount}")
+				mountparts
+				nextitem="${txtmount}"
+			;;
+		esac
+		mountmenu "${nextitem}"
+	fi
+}
+formatdevices(){
+	if (whiptail --backtitle "${apptitle}" --title "${txtformatdevices}" --yesno "${txtformatdeviceconfirm}" --defaultno 0 0) then
+		fspkgs=""
+		if [ ! "${bootdev}" = "" ]; then
+			formatbootdevice boot ${bootdev}
+		fi
+		if [ ! "${swapdev}" = "" ]; then
+			formatswapdevice swap ${swapdev}
+		fi
+		formatdevice root ${rootdev}
+		if [ ! "${homedev}" = "" ]; then
+			formatdevice home ${homedev}
+		fi
+	fi
+}
+formatbootdevice(){
+	options=()
+	if [ "${efimode}" == "1" ]||[ "${efimode}" = "2" ]; then
+		options+=("fat32" "(EFI)")
+	fi
+	options+=("ext2" "")
+	options+=("ext3" "")
+	options+=("ext4" "")
+	if [ ! "${efimode}" = "1" ]&&[ ! "${efimode}" = "2" ]; then
+		options+=("fat32" "(EFI)")
+	fi
+	sel=$(whiptail --backtitle "${apptitle}" --title "${txtformatdevice}" --menu "${txtselectpartformat//%1/${1} (${2})}" 0 0 0 \
+		"${options[@]}" \
+		3>&1 1>&2 2>&3)
+	if [ ! "$?" = "0" ]; then
+		return 1
+	fi
+	clear
+	echo "${txtformatingpart//%1/${2}} ${sel}"
+	echo "----------------------------------------------"
+	case ${sel} in
+		ext2)
+			echo "mkfs.ext2 ${2}"
+			mkfs.ext2 ${2}
+		;;
+		ext3)
+			echo "mkfs.ext3 ${2}"
+			mkfs.ext3 ${2}
+		;;
+		ext4)
+			echo "mkfs.ext4 ${2}"
+			mkfs.ext4 ${2}
+		;;
+		fat32)
+			fspkgs="${fspkgs[@]} dosfstools"
+			echo "mkfs.fat ${2}"
+			mkfs.fat ${2}
+		;;
+	esac
+	echo ""
+	pressanykey
+}
+formatswapdevice(){
+	options=()
+	options+=("swap" "")
+	sel=$(whiptail --backtitle "${apptitle}" --title "${txtformatdevice}" --menu "${txtselectpartformat//%1/${1} (${2})}" 0 0 0 \
+		"${options[@]}" \
+		3>&1 1>&2 2>&3)
+	if [ ! "$?" = "0" ]; then
+		return 1
+	fi
+	clear
+	echo "${txtformatingpart//%1/${swapdev}} swap"
+	echo "----------------------------------------------------"
+	case ${sel} in
+		swap)
+			echo "mkswap ${swapdev}"
+			mkswap ${swapdev}
+			echo ""
+			pressanykey
+		;;
+	esac
+	clear
+}
+formatdevice(){
+	options=()
+	options+=("btrfs" "")
+	options+=("ext4" "")
+	options+=("ext3" "")
+	options+=("ext2" "")
+	options+=("xfs" "")
+	options+=("f2fs" "")
+	options+=("jfs" "")
+	options+=("reiserfs" "")
+	if [ ! "${3}" = "noluks" ]; then
+		options+=("luks" "encrypted")
+	fi
+	sel=$(whiptail --backtitle "${apptitle}" --title "${txtformatdevice}" --menu "${txtselectpartformat//%1/${1} (${2})}" 0 0 0 \
+		"${options[@]}" \
+		3>&1 1>&2 2>&3)
+	if [ ! "$?" = "0" ]; then
+		return 1
+	fi
+	clear
+	echo "${txtformatingpart//%1/${2}} ${sel}"
+	echo "----------------------------------------------"
+	case ${sel} in
+		btrfs)
+			fspkgs="${fspkgs[@]} btrfs-progs"
+			echo "mkfs.btrfs -f ${2}"
+			mkfs.btrfs -f ${2}
+			if [ "${1}" = "root" ]; then
+				echo "mount ${2} /mnt"
+				echo "btrfs subvolume create /mnt/root"
+				echo "btrfs subvolume set-default /mnt/root"
+				echo "umount /mnt"
+				mount ${2} /mnt
+				btrfs subvolume create /mnt/root
+				btrfs subvolume set-default /mnt/root
+				umount /mnt
+			fi
+		;;
+		ext4)
+			echo "mkfs.ext4 ${2}"
+			mkfs.ext4 ${2}
+		;;
+		ext3)
+			echo "mkfs.ext3 ${2}"
+			mkfs.ext3 ${2}
+		;;
+		ext2)
+			echo "mkfs.ext2 ${2}"
+			mkfs.ext2 ${2}
+		;;
+		xfs)
+			fspkgs="${fspkgs[@]} xfsprogs"
+			echo "mkfs.xfs -f ${2}"
+			mkfs.xfs -f ${2}
+		;;
+		f2fs)
+			fspkgs="${fspkgs[@]} f2fs-tools"
+			echo "mkfs.f2fs -f $2"
+			mkfs.f2fs -f $2
+		;;
+		jfs)
+			fspkgs="${fspkgs[@]} jfsutils"
+			echo "mkfs.jfs -f ${2}"
+			mkfs.jfs -f ${2}
+		;;
+		reiserfs)
+			fspkgs="${fspkgs[@]} reiserfsprogs"
+			echo "mkfs.reiserfs -f ${2}"
+			mkfs.reiserfs -f ${2}
+		;;
+		luks)
+			echo "${txtcreateluksdevice}"
+			echo "cryptsetup luksFormat ${2}"
+			cryptsetup luksFormat ${2}
+			if [ ! "$?" = "0" ]; then
+				pressanykey
+				return 1
+			fi
+			pressanykey
+			echo ""
+			echo "${txtopenluksdevice}"
+			echo "cryptsetup luksOpen ${2} ${1}"
+			cryptsetup luksOpen ${2} ${1}
+			if [ ! "$?" = "0" ]; then
+				pressanykey
+				return 1
+			fi
+			pressanykey
+			options=()
+			options+=("normal" "")
+			options+=("fast" "")
+			sel=$(whiptail --backtitle "${apptitle}" --title "${txtformatdevice}" --menu "Wipe device ?" --cancel-button="${txtignore}" 0 0 0 \
+				"${options[@]}" \
+				3>&1 1>&2 2>&3)
+			if [ "$?" = "0" ]; then
+				case ${sel} in
+					normal)
+						echo "dd if=/dev/zero of=/dev/mapper/${1}"
+						dd if=/dev/zero of=/dev/mapper/${1} & PID=$! &>/dev/null
+					;;
+					fast)
+						echo "dd if=/dev/zero of=/dev/mapper/${1} bs=60M"
+						dd if=/dev/zero of=/dev/mapper/${1} bs=60M & PID=$! &>/dev/null
+					;;
+				esac
+				clear
+				sleep 1
+				while kill -USR1 ${PID} &>/dev/null
+				do
+					sleep 1
+				done
+			fi
+			echo ""
+			pressanykey
+			formatdevice ${1} /dev/mapper/${1} noluks
+			if [ "${1}" = "root" ]; then
+				realrootdev=${rootdev}
+				rootdev=/dev/mapper/${1}
+				luksroot=1
+				luksrootuuid=$(cryptsetup luksUUID ${2})
+			else
+				case ${1} in
+					home) homedev=/dev/mapper/${1} ;;
+				esac
+				luksdrive=1
+				crypttab="\n${1}    UUID=$(cryptsetup luksUUID ${2})    none"
+			fi
+			echo ""
+			echo "${txtluksdevicecreated}"
+		;;
+	esac
+	echo ""
+	pressanykey
+}
+mountparts(){
+	clear
+	echo "mount ${rootdev} /mnt"
+	mount ${rootdev} /mnt
+	echo "mkdir /mnt/{boot,home}"
+	mkdir /mnt/{boot,home} 2>/dev/null
+	if [ ! "${bootdev}" = "" ]; then
+		echo "mount ${bootdev} /mnt/boot"
+		mount ${bootdev} /mnt/boot
+	fi
+	if [ ! "${swapdev}" = "" ]; then
+		echo "swapon ${swapdev}"
+		swapon ${swapdev}
+	fi
+	if [ ! "${homedev}" = "" ]; then
+		echo "mount ${homedev} /mnt/home"
+		mount ${homedev} /mnt/home
+	fi
+	pressanykey
+}
