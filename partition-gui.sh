@@ -179,3 +179,18 @@ diskpartautoefiusb(){
 		fi
 	fi
 }
+
+diskpartcfdisk(){
+		device=$( selectdisk "${txteditparts} (cfdisk)" )
+	if [ "$?" = "0" ]; then
+		clear
+		cfdisk ${device}
+	fi
+}
+diskpartcgdisk(){
+		device=$( selectdisk "${txteditparts} (cgdisk)" )
+	if [ "$?" = "0" ]; then
+		clear
+		cgdisk ${device}
+	fi
+}
