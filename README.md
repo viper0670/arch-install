@@ -6,6 +6,6 @@ archfi https://github.com/MatMoul/archfi
 arch wiki https://wiki.archlinux.org/title/installation_guide
 
 
-achfi was used for grub-install.sh and partition-gui.sh
+achfi was used for grub-install.sh and partition-gui.sh and font.sh
 
 arch wiki was used in install.sh
