@@ -129,3 +129,171 @@ archmenu(){
 		archmenu "${nextitem}"
 	fi
 }
+archchroot(){
+	echo "arch-chroot /mnt /root"
+	cp ${0} /mnt/root
+	chmod 755 /mnt/root/$(basename "${0}")
+	arch-chroot /mnt /root/$(basename "${0}") --chroot ${1} ${2}
+	rm /mnt/root/$(basename "${0}")
+	echo "exit"
+}
+archsethostname(){
+	hostname=$(whiptail --backtitle "${apptitle}" --title "${txtsethostname}" --inputbox "" 0 0 "archlinux" 3>&1 1>&2 2>&3)
+	if [ "$?" = "0" ]; then
+		clear
+		echo "echo \"${hostname}\" > /mnt/etc/hostname"
+		echo "${hostname}" > /mnt/etc/hostname
+		pressanykey
+	fi
+}
+archsetkeymap(){
+	#items=$(localectl list-keymaps)
+	#options=()
+	#for item in ${items}; do
+	#  options+=("${item}" "")
+	#done
+	items=$(find /usr/share/kbd/keymaps/ -type f -printf "%f\n" | sort -V)
+	options=()
+	defsel=""
+	for item in ${items}; do
+		if [ "${item%%.*}" == "${keymap}" ]; then
+			defsel="${item%%.*}"
+		fi
+		options+=("${item%%.*}" "")
+	done
+	keymap=$(whiptail --backtitle "${apptitle}" --title "${txtsetkeymap}" --menu "" --default-item "${defsel}" 0 0 0 \
+		"${options[@]}" \
+		3>&1 1>&2 2>&3)
+	if [ "$?" = "0" ]; then
+		clear
+		echo "echo \"KEYMAP=${keymap}\" > /mnt/etc/vconsole.conf"
+		echo "KEYMAP=${keymap}" > /mnt/etc/vconsole.conf
+		pressanykey
+	fi
+}
+archsetfont(){
+	items=$(find /usr/share/kbd/consolefonts/*.psfu.gz -printf "%f\n")
+	options=()
+	for item in ${items}; do
+		options+=("${item%%.*}" "")
+	done
+	vcfont=$(whiptail --backtitle "${apptitle}" --title "${txtsetfont} (${txtoptional})" --menu "" 0 0 0 \
+		"${options[@]}" \
+		3>&1 1>&2 2>&3)
+	if [ "$?" = "0" ]; then
+		clear
+		echo "echo \"FONT=${vcfont}\" >> /mnt/etc/vconsole.conf"
+		echo "FONT=${vcfont}" >> /mnt/etc/vconsole.conf
+		pressanykey
+	fi
+}
+archsetlocale(){
+	items=$(ls /usr/share/i18n/locales)
+	options=()
+	defsel=""
+	for item in ${items}; do
+		if [ "${defsel}" == "" ]&&[ "${keymap::2}" == "${item::2}" ]; then
+			defsel="${item}"
+		fi
+		options+=("${item}" "")
+	done
+	locale=$(whiptail --backtitle "${apptitle}" --title "${txtsetlocale}" --menu "" --default-item "${defsel}" 0 0 0 \
+		"${options[@]}" \
+		3>&1 1>&2 2>&3)
+	if [ "$?" = "0" ]; then
+		clear
+		echo "echo \"LANG=${locale}.UTF-8\" > /mnt/etc/locale.conf"
+		echo "LANG=${locale}.UTF-8" > /mnt/etc/locale.conf
+		echo "echo \"LC_COLLATE=C\" >> /mnt/etc/locale.conf"
+		echo "LC_COLLATE=C" >> /mnt/etc/locale.conf
+		echo "sed -i '/#${locale}.UTF-8/s/^#//g' /mnt/etc/locale.gen"
+		sed -i '/#'${locale}'.UTF-8/s/^#//g' /mnt/etc/locale.gen
+		archchroot setlocale
+		pressanykey
+	fi
+}
+archsetlocalechroot(){
+	echo "locale-gen"
+	locale-gen
+	exit
+}
+archsettime(){
+	items=$(ls -l /mnt/usr/share/zoneinfo/ | grep '^d' | gawk -F':[0-9]* ' '/:/{print $2}')
+	options=()
+	for item in ${items}; do
+		options+=("${item}" "")
+	done
+	timezone=$(whiptail --backtitle "${apptitle}" --title "${txtsettime}" --menu "" 0 0 0 \
+		"${options[@]}" \
+		3>&1 1>&2 2>&3)
+	if [ ! "$?" = "0" ]; then
+		return 1
+	fi
+	items=$(ls /mnt/usr/share/zoneinfo/${timezone}/)
+	options=()
+	for item in ${items}; do
+		options+=("${item}" "")
+	done
+	timezone=${timezone}/$(whiptail --backtitle "${apptitle}" --title "${txtsettime}" --menu "" 0 0 0 \
+		"${options[@]}" \
+		3>&1 1>&2 2>&3)
+	if [ ! "$?" = "0" ]; then
+		return 1
+	fi
+	clear
+	echo "ln -sf /mnt/usr/share/zoneinfo/${timezone} /mnt/etc/localtime"
+	ln -sf /usr/share/zoneinfo/${timezone} /mnt/etc/localtime
+	pressanykey
+	options=()
+	options+=("UTC" "")
+	options+=("Local" "")
+	sel=$(whiptail --backtitle "${apptitle}" --title "${txtsettime}" --menu "${txthwclock}" 0 0 0 \
+		"${options[@]}" \
+		3>&1 1>&2 2>&3)
+	if [ ! "$?" = "0" ]; then
+		return 1
+	fi
+	
+	clear
+	case ${sel} in
+		"${txthwclockutc}")
+			archchroot settimeutc
+		;;
+		"${txthwclocklocal}")
+			archchroot settimelocal
+		;;
+	esac
+	
+#	if (whiptail --backtitle "${apptitle}" --title "${txtsettime}" --yesno "${txtuseutcclock}" 0 0) then
+#		clear
+#		archchroot settimeutc
+#	else
+#		clear
+#		archchroot settimelocal
+#	fi
+	pressanykey
+}
+archsettimeutcchroot(){
+	echo "hwclock --systohc --utc"
+	hwclock --systohc --utc
+	exit
+}
+archsettimelocalchroot(){
+	echo "hwclock --systohc --localtime"
+	hwclock --systohc --localtime
+	exit
+}
+archsetrootpassword(){
+	clear
+	archchroot setrootpassword
+	pressanykey
+}
+archsetrootpasswordchroot(){
+	echo "passwd root"
+	passed=1
+	while [[ ${passed} != 0 ]]; do
+		passwd root
+		passed=$?
+	done
+	exit
+}
